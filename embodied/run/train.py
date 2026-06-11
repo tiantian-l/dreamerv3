@@ -34,9 +34,10 @@ def train(make_agent, make_replay, make_env, make_stream, make_logger, args):
     episode.add('score', tran['reward'], agg='sum')
     episode.add('length', 1, agg='sum')
     episode.add('rewards', tran['reward'], agg='stack')
+    recording = bool(tran.get('log/video_recorded', 0.0) > 0.5)
     for key, value in tran.items():
       if value.dtype == np.uint8 and value.ndim == 3:
-        if worker == 0:
+        if worker == 0 and recording:
           episode.add(f'policy_{key}', value, agg='stack')
       elif key.startswith('log/'):
         assert value.ndim == 0, (key, value.shape, value.dtype)
