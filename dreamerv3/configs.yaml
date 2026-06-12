@@ -35,7 +35,7 @@ defaults:
     minecraft: {size: [64, 64], break_speed: 100.0, logs: False, length: 36000}
     dmc: {size: [64, 64], repeat: 1, proprio: True, image: True, camera: -1}
     loconav: {size: [64, 64], repeat: 1, camera: -1}
-    drone: {ctrl_freq: 30, pyb_freq: 240, episode_len_sec: 12, goal_tolerance: 0.1, randomize_goal: True, randomize_start: False, include_angular_velocity: False, gui: False, log_image: False, video_every: 20, use_index: True}
+    drone: {ctrl_freq: 30, pyb_freq: 240, episode_len_sec: 12, goal_tolerance: 0.1, randomize_goal: True, randomize_start: False, include_angular_velocity: False, gui: False, log_image: False, video_every: 20, use_index: True, render_mode: 3d}
 
   replay:
     size: 5e6
