@@ -49,24 +49,38 @@ def train_eval(
     episode.add('score', tran['reward'], agg='sum')
     episode.add('length', 1, agg='sum')
     episode.add('rewards', tran['reward'], agg='stack')
+    recording = bool(tran.get('log/video_recorded', 0.0) > 0.5)
     for key, value in tran.items():
+      if key == 'log/video_recorded':
+        continue  # control flag, not a metric
       if value.dtype == np.uint8 and value.ndim == 3:
-        if worker == 0:
+        if worker == 0 and recording:
           episode.add(f'policy_{key}', value, agg='stack')
       elif key.startswith('log/'):
         assert value.ndim == 0, (key, value.shape, value.dtype)
-        episode.add(key + '/avg', value, agg='avg')
-        episode.add(key + '/max', value, agg='max')
-        episode.add(key + '/sum', value, agg='sum')
+        # Convention: `log/<agg>/<name>` reduces to a single `log/<name>`
+        # metric with the requested aggregator; anything else keeps the
+        # legacy avg/max/sum triple for backward compatibility.
+        parts = key.split('/')
+        if len(parts) == 3 and parts[1] in ('avg', 'max', 'sum', 'min', 'last'):
+          episode.add(f'log/{parts[2]}', value, agg=parts[1])
+        else:
+          episode.add(key + '/avg', value, agg='avg')
+          episode.add(key + '/max', value, agg='max')
+          episode.add(key + '/sum', value, agg='sum')
     if tran['is_last']:
       result = episode.result()
-      logger.add({
-          'score': result.pop('score'),
-          'length': result.pop('length'),
-      }, prefix='episode')
+      score = result.pop('score')
+      length = result.pop('length')
+      ep_prefix = 'episode' if mode == 'train' else 'eval_episode'
+      logger.add({'score': score, 'length': length}, prefix=ep_prefix)
       rew = result.pop('rewards')
       if len(rew) > 1:
         result['reward_rate'] = (np.abs(rew[1:] - rew[:-1]) >= 0.01).mean()
+      # Arrival time: only recorded for successful episodes, so epstats
+      # averages it over successes only (mean ignores absent keys).
+      if result.get('log/success', 0.0) > 0.5:
+        result['log/time_to_goal'] = np.float32(length)
       epstats.add(result)
 
   fns = [bind(make_env_train, i) for i in range(args.envs)]
@@ -132,7 +146,7 @@ def train_eval(
       print('Evaluation')
       driver_eval.reset(agent.init_policy)
       driver_eval(eval_policy, episodes=args.eval_eps)
-      logger.add(eval_epstats.result(), prefix='epstats')
+      logger.add(eval_epstats.result(), prefix='eval_epstats')
       if len(replay_train):
         carry_report, mets = reportfn(carry_report, stream_report)
         logger.add(mets, prefix='report')

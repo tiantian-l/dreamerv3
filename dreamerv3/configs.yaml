@@ -191,7 +191,9 @@ dmc_vision:
 drone_nav:
   <<: *size1m
   task: drone_nav
-  run: {steps: 2e6, envs: 4, eval_envs: 2, train_ratio: 512}
+  script: train_eval
+  logger.filter: 'score|length|fps|ratio|train/loss/|success|time_to_goal|distance'
+  run: {steps: 2e6, envs: 4, eval_envs: 4, eval_eps: 20, train_ratio: 512}
 
 bsuite:
   task: bsuite_mnist/0
