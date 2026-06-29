@@ -35,7 +35,7 @@ defaults:
     minecraft: {size: [64, 64], break_speed: 100.0, logs: False, length: 36000}
     dmc: {size: [64, 64], repeat: 1, proprio: True, image: True, camera: -1}
     loconav: {size: [64, 64], repeat: 1, camera: -1}
-    drone: {ctrl_freq: 30, pyb_freq: 240, episode_len_sec: 12, goal_tolerance: 0.1, randomize_goal: True, randomize_start: False, include_angular_velocity: False, num_obstacles: 6, randomize_obstacles: True, obstacle_placement: corridor, obstacle_density: 0.0, corridor_blockers: 2, obstacle_obs_mode: nearest, lidar_num_beams: 16, lidar_max_range: 2.0, lidar_body_frame: False, gui: False, log_image: False, video_every: 20, use_index: True}
+    drone: {ctrl_freq: 30, pyb_freq: 240, episode_len_sec: 12, goal_tolerance: 0.1, randomize_goal: True, randomize_start: False, include_angular_velocity: False, num_obstacles: 6, randomize_obstacles: True, obstacle_placement: corridor, obstacle_density: 0.0, obstacle_clearance: 0.6, corridor_blockers: 2, corridor_t_range: [0.15, 0.85], obstacle_obs_mode: nearest, lidar_num_beams: 16, lidar_max_range: 2.0, lidar_body_frame: False, gui: False, log_image: False, video_every: 20, use_index: True}
 
   replay:
     size: 5e6
@@ -215,6 +215,8 @@ drone_lidar:
   env.drone.obstacle_placement: mixed
   env.drone.obstacle_density: 0.4
   env.drone.corridor_blockers: 2
+  env.drone.corridor_t_range: [0.1, 0.9]
+  env.drone.obstacle_clearance: 0.35
   env.drone.lidar_num_beams: 16
   env.drone.lidar_max_range: 2.0
   env.drone.episode_len_sec: 15
