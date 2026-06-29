@@ -16,9 +16,47 @@ import portal
 import ruamel.yaml as yaml
 
 
+def _patch_elements_gif_encoder():
+  """Patch elements GIF writer for ffmpeg>=8 (removed `fifo` filter)."""
+  try:
+    import elements.logger as elogger
+  except Exception:
+    return
+
+  encode = getattr(elogger, '_encode_gif', None)
+  if encode is None:
+    return
+
+  @elements.timer.section('gif')
+  def _encode_gif_compat(frames, fps):
+    from subprocess import PIPE, Popen
+    h, w, c = frames[0].shape
+    pxfmt = {1: 'gray', 3: 'rgb24'}[c]
+    cmd = [
+        'ffmpeg', '-y', '-f', 'rawvideo', '-vcodec', 'rawvideo',
+        '-r', f'{fps:.02f}', '-s', f'{w}x{h}', '-pix_fmt', pxfmt,
+        '-i', '-', '-filter_complex',
+        '[0:v]split[x][z];[z]palettegen[y];[x][y]paletteuse',
+        '-r', f'{fps:.02f}', '-f', 'gif', '-',
+    ]
+    proc = Popen(cmd, stdin=PIPE, stdout=PIPE, stderr=PIPE)
+    for image in frames:
+      proc.stdin.write(image.tobytes())
+    out, err = proc.communicate()
+    if proc.returncode:
+      raise IOError('\n'.join([' '.join(cmd), err.decode('utf8')]))
+    del proc
+    return out
+
+  elogger._encode_gif = _encode_gif_compat
+  print('Patched elements GIF encoder for ffmpeg compatibility.')
+
+
 def main(argv=None):
   from .agent import Agent
   [elements.print(line) for line in Agent.banner]
+
+  _patch_elements_gif_encoder()
 
   configs = elements.Path(folder / 'configs.yaml').read()
   configs = yaml.YAML(typ='safe').load(configs)
