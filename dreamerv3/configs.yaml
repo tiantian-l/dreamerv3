@@ -35,7 +35,7 @@ defaults:
     minecraft: {size: [64, 64], break_speed: 100.0, logs: False, length: 36000}
     dmc: {size: [64, 64], repeat: 1, proprio: True, image: True, camera: -1}
     loconav: {size: [64, 64], repeat: 1, camera: -1}
-    drone: {ctrl_freq: 30, pyb_freq: 240, episode_len_sec: 12, goal_tolerance: 0.1, randomize_goal: True, randomize_start: False, include_angular_velocity: False, num_obstacles: 0, randomize_obstacles: True, obstacle_placement: corridor, obstacle_density: 0.0, gui: False, log_image: False, video_every: 20, use_index: True}
+    drone: {ctrl_freq: 30, pyb_freq: 240, episode_len_sec: 12, goal_tolerance: 0.1, randomize_goal: True, randomize_start: False, include_angular_velocity: False, num_obstacles: 6, randomize_obstacles: True, gui: False, log_image: False, video_every: 20, use_index: True}
 
   replay:
     size: 5e6
@@ -199,15 +199,6 @@ drone_obstacles:
   <<: *size1m
   task: drone_nav
   env.drone.num_obstacles: 4
-  env.drone.obstacle_placement: corridor
-  run: {steps: 3e6, envs: 4, eval_envs: 2, train_ratio: 512}
-
-drone_obstacles_grid:
-  <<: *size1m
-  task: drone_nav
-  env.drone.num_obstacles: 8
-  env.drone.obstacle_placement: grid
-  env.drone.obstacle_density: 0.6
   run: {steps: 3e6, envs: 4, eval_envs: 2, train_ratio: 512}
 
 bsuite:
