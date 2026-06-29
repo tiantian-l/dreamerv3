@@ -35,7 +35,7 @@ defaults:
     minecraft: {size: [64, 64], break_speed: 100.0, logs: False, length: 36000}
     dmc: {size: [64, 64], repeat: 1, proprio: True, image: True, camera: -1}
     loconav: {size: [64, 64], repeat: 1, camera: -1}
-    drone: {ctrl_freq: 30, pyb_freq: 240, episode_len_sec: 12, goal_tolerance: 0.1, randomize_goal: True, randomize_start: False, include_angular_velocity: False, num_obstacles: 6, randomize_obstacles: True, gui: False, log_image: False, video_every: 20, use_index: True}
+    drone: {ctrl_freq: 30, pyb_freq: 240, episode_len_sec: 12, goal_tolerance: 0.1, randomize_goal: True, randomize_start: False, include_angular_velocity: False, num_obstacles: 6, randomize_obstacles: True, obstacle_placement: corridor, obstacle_density: 0.0, obstacle_obs_mode: nearest, lidar_num_beams: 16, lidar_max_range: 2.0, lidar_body_frame: False, gui: False, log_image: False, video_every: 20, use_index: True}
 
   replay:
     size: 5e6
@@ -200,6 +200,25 @@ drone_obstacles:
   task: drone_nav
   env.drone.num_obstacles: 4
   run: {steps: 3e6, envs: 4, eval_envs: 2, train_ratio: 512}
+
+# Whole-map obstacle field perceived by a 2-D lidar. Obstacles are sprinkled
+# everywhere at a fixed density (not just on the start->goal corridor) so the
+# agent must learn general avoidance instead of dodging one fixed cluster. The
+# lidar observation has a fixed width, so it is independent of obstacle count.
+# Tuned for a single RTX 3090 (24 GB): size1m world model + 8 PyBullet envs.
+drone_lidar:
+  <<: *size1m
+  task: drone_nav
+  script: train_eval
+  logger.filter: 'score|length|fps|ratio|train/loss/|success|collision|time_to_goal|distance'
+  env.drone.obstacle_obs_mode: lidar
+  env.drone.obstacle_placement: grid
+  env.drone.obstacle_density: 0.4
+  env.drone.lidar_num_beams: 16
+  env.drone.lidar_max_range: 2.0
+  env.drone.episode_len_sec: 15
+  run: {steps: 5e6, envs: 8, eval_envs: 4, eval_eps: 20, train_ratio: 512}
+
 
 bsuite:
   task: bsuite_mnist/0
