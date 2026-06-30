@@ -36,6 +36,7 @@ defaults:
     dmc: {size: [64, 64], repeat: 1, proprio: True, image: True, camera: -1}
     loconav: {size: [64, 64], repeat: 1, camera: -1}
     drone: {ctrl_freq: 30, pyb_freq: 240, episode_len_sec: 16, goal_tolerance: 0.1, randomize_goal: True, randomize_start: False, include_angular_velocity: False, gui: False, log_image: False, video_every: 20, use_index: True, render_mode: 3d, obstacles_enabled: True, n_obstacles: 12, n_corridor_obstacles: 3, lidar_enabled: True, lidar_n_beams: 32, lidar_range: 4.0}
+    dronedyn: {ctrl_freq: 30, pyb_freq: 240, episode_len_sec: 25, goal_tolerance: 0.1, include_angular_velocity: False, gui: False, log_image: False, video_every: 20, use_index: True, render_mode: 3d, obstacles_enabled: True, n_obstacles: 0, n_corridor_obstacles: 0, lidar_enabled: True, lidar_n_beams: 48, lidar_range: 4.0, n_dynamic_obstacles: 2, dyn_radius: 0.18, dyn_height: 3.0, dyn_speed_min: 0.3, dyn_speed_max: 0.7, dyn_cross_half_width: 1.2, dyn_axis_lo: 0.35, dyn_axis_hi: 0.65, ttc_penalty: 0.6, ttc_margin: 0.8, curriculum: False, curriculum_window: 20, curriculum_promote: 0.6, curriculum_start_level: 0, curriculum_fixed_level: -1}
 
   replay:
     size: 5e6
@@ -194,6 +195,39 @@ drone_nav:
   script: train_eval
   logger.filter: 'score|length|fps|ratio|train/loss/|success|collision|crash|timeout|distance|lidar'
   run: {steps: 2e6, envs: 4, eval_envs: 4, eval_eps: 20, train_ratio: 512}
+
+dronedyn:
+  <<: *size1m
+  task: dronedyn_cross
+  script: train_eval
+  logger.filter: 'score|length|fps|ratio|train/loss/|success|collision|crash|timeout|distance|lidar|clearance'
+  run: {steps: 2e6, envs: 4, eval_envs: 4, eval_eps: 20, train_ratio: 512}
+
+# Single-run self-paced curriculum: each env auto-promotes through the level
+# ladder (see DynamicNavigationAviary.DEFAULT_CURRICULUM) once its recent
+# success rate clears `curriculum_promote`. Watch `epstats/log/curriculum_level`
+# to see progression. NOTE: eval envs share the env config and self-pace too,
+# so eval reflects whatever level each eval worker has reached.
+dronedyn_curr:
+  <<: *size1m
+  task: dronedyn_cross
+  script: train_eval
+  logger.filter: 'score|length|fps|ratio|train/loss/|success|collision|crash|timeout|distance|lidar|clearance|curriculum'
+  env.dronedyn.curriculum: True
+  run: {steps: 4e6, envs: 4, eval_envs: 4, eval_eps: 20, train_ratio: 512}
+
+# Staged curriculum (recommended for clean, reproducible eval): run each level
+# in sequence, resuming from the previous level's checkpoint, e.g.
+#   --configs dronedyn_l0
+#   --configs dronedyn_l1 --run.from_checkpoint <l0_logdir>/checkpoint.ckpt
+# `curriculum_fixed_level` pins a single rung of DEFAULT_CURRICULUM so the
+# obstacle counts/speeds (incl. static clutter) match that stage exactly.
+dronedyn_l0: {<<: *size1m, task: dronedyn_cross, script: train_eval, env.dronedyn.curriculum: True, env.dronedyn.curriculum_fixed_level: 0, logger.filter: 'score|length|fps|ratio|train/loss/|success|collision|crash|timeout|distance|lidar|clearance', run: {steps: 8e5, envs: 4, eval_envs: 4, eval_eps: 20, train_ratio: 512}}
+dronedyn_l1: {<<: *size1m, task: dronedyn_cross, script: train_eval, env.dronedyn.curriculum: True, env.dronedyn.curriculum_fixed_level: 1, logger.filter: 'score|length|fps|ratio|train/loss/|success|collision|crash|timeout|distance|lidar|clearance', run: {steps: 8e5, envs: 4, eval_envs: 4, eval_eps: 20, train_ratio: 512}}
+dronedyn_l2: {<<: *size1m, task: dronedyn_cross, script: train_eval, env.dronedyn.curriculum: True, env.dronedyn.curriculum_fixed_level: 2, logger.filter: 'score|length|fps|ratio|train/loss/|success|collision|crash|timeout|distance|lidar|clearance', run: {steps: 1e6, envs: 4, eval_envs: 4, eval_eps: 20, train_ratio: 512}}
+dronedyn_l3: {<<: *size1m, task: dronedyn_cross, script: train_eval, env.dronedyn.curriculum: True, env.dronedyn.curriculum_fixed_level: 3, logger.filter: 'score|length|fps|ratio|train/loss/|success|collision|crash|timeout|distance|lidar|clearance', run: {steps: 1e6, envs: 4, eval_envs: 4, eval_eps: 20, train_ratio: 512}}
+dronedyn_l4: {<<: *size1m, task: dronedyn_cross, script: train_eval, env.dronedyn.curriculum: True, env.dronedyn.curriculum_fixed_level: 4, logger.filter: 'score|length|fps|ratio|train/loss/|success|collision|crash|timeout|distance|lidar|clearance', run: {steps: 1.2e6, envs: 4, eval_envs: 4, eval_eps: 20, train_ratio: 512}}
+dronedyn_l5: {<<: *size1m, task: dronedyn_cross, script: train_eval, env.dronedyn.curriculum: True, env.dronedyn.curriculum_fixed_level: 5, logger.filter: 'score|length|fps|ratio|train/loss/|success|collision|crash|timeout|distance|lidar|clearance', run: {steps: 1.2e6, envs: 4, eval_envs: 4, eval_eps: 20, train_ratio: 512}}
 
 bsuite:
   task: bsuite_mnist/0

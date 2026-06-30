@@ -268,6 +268,7 @@ def make_env(config, index, **overrides):
       'procgen': 'embodied.envs.procgen:ProcGen',
       'bsuite': 'embodied.envs.bsuite:BSuite',
       'drone': 'drone_nav.from_gymnasium:make_drone_nav',
+      'dronedyn': 'drone_nav.from_gymnasium:make_drone_dyn',
       'memmaze': lambda task, **kw: from_gym.FromGym(
           f'MemoryMaze-{task}-v0', **kw),
   }[suite]
