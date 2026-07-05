@@ -118,7 +118,7 @@ def main(argv=None):
         bind(make_replay, config, 'replay'),
         bind(make_replay, config, 'eval_replay', 'eval'),
         bind(make_env, config),
-        bind(make_env, config),
+        bind(make_env, config, eval_mode=True),
         bind(make_stream, config),
         bind(make_logger, config),
         args)
@@ -126,7 +126,7 @@ def main(argv=None):
   elif config.script == 'eval_only':
     embodied.run.eval_only(
         bind(make_agent, config),
-        bind(make_env, config),
+        bind(make_env, config, eval_mode=True),
         bind(make_logger, config),
         args)
 
@@ -136,7 +136,7 @@ def main(argv=None):
         bind(make_replay, config, 'replay'),
         bind(make_replay, config, 'replay_eval', 'eval'),
         bind(make_env, config),
-        bind(make_env, config),
+        bind(make_env, config, eval_mode=True),
         bind(make_stream, config),
         bind(make_logger, config),
         args)
@@ -149,7 +149,7 @@ def main(argv=None):
   elif config.script == 'parallel_envs':
     is_eval = config.replica >= args.envs
     embodied.run.parallel.parallel_envs(
-        bind(make_env, config), bind(make_env, config), args)
+        bind(make_env, config), bind(make_env, config, eval_mode=True), args)
 
   elif config.script == 'parallel_replay':
     embodied.run.parallel.parallel_replay(
@@ -277,6 +277,11 @@ def make_env(config, index, **overrides):
     ctor = getattr(module, cls)
   kwargs = config.env.get(suite, {})
   kwargs.update(overrides)
+  # `eval_mode` is only meaningful for the drone suite's deterministic-eval
+  # maps; drop it for every other suite so their ctors don't see an unexpected
+  # keyword argument.
+  if suite != 'drone':
+    kwargs.pop('eval_mode', None)
   if kwargs.pop('use_seed', False):
     kwargs['seed'] = hash((config.seed, index)) % (2 ** 32 - 1)
   if kwargs.pop('use_logdir', False):
