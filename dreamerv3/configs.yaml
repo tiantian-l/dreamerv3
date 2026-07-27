@@ -35,7 +35,29 @@ defaults:
     minecraft: {size: [64, 64], break_speed: 100.0, logs: False, length: 36000}
     dmc: {size: [64, 64], repeat: 1, proprio: True, image: True, camera: -1}
     loconav: {size: [64, 64], repeat: 1, camera: -1}
-    drone: {ctrl_freq: 30, pyb_freq: 240, episode_len_sec: 40, goal_tolerance: 0.5, randomize_goal: True, randomize_start: True, include_angular_velocity: False, speed_limit: 2.0, n_obstacles: 88, collision_distance: 0.3, gui: False, log_image: False, video_every: 20, use_index: True, render_mode: 3d}
+    drone:
+      ctrl_freq: 30
+      pyb_freq: 240
+      episode_len_sec: 40
+      goal_tolerance: 0.5
+      randomize_goal: True
+      randomize_start: True
+      goal_sample_range: [11.7, 12.0, -7.5, 7.5, 0.6, 3.5]
+      start_sample_range: [-12.0, -11.7, -7.5, 7.5, 0.8, 1.5]
+      bounds: [-12.5, 12.5, -10.0, 10.0, 0.05, 4.5]
+      map_range: [10.0, 10.0, 4.5]
+      include_angular_velocity: False
+      speed_limit: 2.0
+      obstacles_enabled: True
+      n_obstacles: 88
+      collision_distance: 0.3
+      path_bounds_y: [-9.8, 9.8]
+      eval_seed_base: 100000
+      gui: False
+      log_image: False
+      video_every: 20
+      use_index: True
+      render_mode: 3d
 
   replay:
     size: 5e6
@@ -207,9 +229,9 @@ drone_ablation_a:
   seed: 0
   env.drone:
     episode_len_sec: 15
-    goal_sample_range: [[2.0, 3.0], [-1.5, 1.5], [0.8, 1.5]]
-    start_sample_range: [[-3.0, -2.0], [-1.5, 1.5], [0.8, 1.5]]
-    bounds: [[-3.5, 3.5], [-3.0, 3.0], [0.05, 3.0]]
+    goal_sample_range: [2.0, 3.0, -1.5, 1.5, 0.8, 1.5]
+    start_sample_range: [-3.0, -2.0, -1.5, 1.5, 0.8, 1.5]
+    bounds: [-3.5, 3.5, -3.0, 3.0, 0.05, 3.0]
     map_range: [2.0, 2.0, 3.0]
     obstacles_enabled: False
     n_obstacles: 0
@@ -221,9 +243,9 @@ drone_ablation_b:
   seed: 0
   env.drone:
     episode_len_sec: 20
-    goal_sample_range: [[4.0, 5.0], [-2.5, 2.5], [0.8, 2.0]]
-    start_sample_range: [[-5.0, -4.0], [-2.5, 2.5], [0.8, 1.5]]
-    bounds: [[-5.5, 5.5], [-4.5, 4.5], [0.05, 3.5]]
+    goal_sample_range: [4.0, 5.0, -2.5, 2.5, 0.8, 2.0]
+    start_sample_range: [-5.0, -4.0, -2.5, 2.5, 0.8, 1.5]
+    bounds: [-5.5, 5.5, -4.5, 4.5, 0.05, 3.5]
     map_range: [3.8, 3.8, 3.5]
     obstacles_enabled: True
     n_obstacles: 16
@@ -236,9 +258,9 @@ drone_ablation_c:
   seed: 0
   env.drone:
     episode_len_sec: 30
-    goal_sample_range: [[7.0, 8.0], [-5.0, 5.0], [0.8, 2.8]]
-    start_sample_range: [[-8.0, -7.0], [-5.0, 5.0], [0.8, 1.5]]
-    bounds: [[-8.5, 8.5], [-7.0, 7.0], [0.05, 4.0]]
+    goal_sample_range: [7.0, 8.0, -5.0, 5.0, 0.8, 2.8]
+    start_sample_range: [-8.0, -7.0, -5.0, 5.0, 0.8, 1.5]
+    bounds: [-8.5, 8.5, -7.0, 7.0, 0.05, 4.0]
     map_range: [6.8, 6.8, 4.0]
     obstacles_enabled: True
     n_obstacles: 40
@@ -251,9 +273,9 @@ drone_ablation_d:
   seed: 0
   env.drone:
     episode_len_sec: 40
-    goal_sample_range: [[11.7, 12.0], [-7.5, 7.5], [0.6, 3.5]]
-    start_sample_range: [[-12.0, -11.7], [-7.5, 7.5], [0.8, 1.5]]
-    bounds: [[-12.5, 12.5], [-10.0, 10.0], [0.05, 4.5]]
+    goal_sample_range: [11.7, 12.0, -7.5, 7.5, 0.6, 3.5]
+    start_sample_range: [-12.0, -11.7, -7.5, 7.5, 0.8, 1.5]
+    bounds: [-12.5, 12.5, -10.0, 10.0, 0.05, 4.5]
     map_range: [10.0, 10.0, 4.5]
     obstacles_enabled: True
     n_obstacles: 88
