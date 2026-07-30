@@ -8,6 +8,7 @@ import jax
 import jax.numpy as jnp
 import ninjax as nj
 import numpy as np
+import re
 
 f32 = jnp.float32
 sg = jax.lax.stop_gradient
@@ -188,12 +189,28 @@ class Encoder(nj.Module):
   symlog: bool = True
   outer: bool = False
   strided: bool = False
+  # Keys matching this regex are routed through a dedicated 1D convolution over
+  # the LiDAR azimuth axis (elevation layers as channels) instead of the shared
+  # MLP. Empty string disables the branch, keeping every task unchanged.
+  lidar_keys: str = ''
+  lidar_depth: int = 48
+  lidar_layers: int = 3
+  lidar_kernel: int = 5
+  lidar_stride: int = 1
+  lidar_units: int = 512
 
   def __init__(self, obs_space, **kw):
     assert all(len(s.shape) <= 3 for s in obs_space.values()), obs_space
     self.obs_space = obs_space
-    self.veckeys = [k for k, s in obs_space.items() if len(s.shape) <= 2]
-    self.imgkeys = [k for k, s in obs_space.items() if len(s.shape) == 3]
+    self.lidarkeys = [
+        k for k in obs_space
+        if self.lidar_keys and re.search(self.lidar_keys, k)]
+    self.veckeys = [
+        k for k, s in obs_space.items()
+        if len(s.shape) <= 2 and k not in self.lidarkeys]
+    self.imgkeys = [
+        k for k, s in obs_space.items()
+        if len(s.shape) == 3 and k not in self.lidarkeys]
     self.depths = tuple(self.depth * mult for mult in self.mults)
     self.kw = kw
 
@@ -206,6 +223,16 @@ class Encoder(nj.Module):
 
   def truncate(self, entries, carry=None):
     return {}
+
+  def _circular_pad_w(self, x, kernel):
+    # Circularly pad the width (azimuth) axis of an (N, 1, W, C) tensor so a
+    # 'valid' convolution keeps the width and treats azimuth as periodic.
+    pad = kernel // 2
+    if pad <= 0:
+      return x
+    left = x[:, :, -pad:, :]
+    right = x[:, :, :pad, :]
+    return jnp.concatenate([left, x, right], axis=2)
 
   def __call__(self, carry, obs, reset, training, single=False):
     bdims = 1 if single else 2
@@ -243,6 +270,28 @@ class Encoder(nj.Module):
       assert 3 <= x.shape[-2] <= 16, x.shape
       x = x.reshape((x.shape[0], -1))
       outs.append(x)
+
+    if self.lidarkeys:
+      for k in sorted(self.lidarkeys):
+        name = k.replace('/', '_')
+        x = nn.cast(obs[k])
+        # (*bshape, V, H) -> (B, V, H).
+        x = x.reshape((-1, *x.shape[bdims:]))
+        # Center the normalized [0, 1] ranges, then lay out azimuth (H) as the
+        # spatial axis and elevation layers (V) as channels: (B, 1, H, V).
+        x = jnp.transpose(x - 0.5, (0, 2, 1))[:, None, :, :]
+        for i in range(self.lidar_layers):
+          x = self._circular_pad_w(x, self.lidar_kernel)
+          x = self.sub(
+              f'{name}conv{i}', nn.Conv2D, self.lidar_depth,
+              (1, self.lidar_kernel), self.lidar_stride, pad='valid',
+              **self.kw)(x)
+          x = nn.act(self.act)(
+              self.sub(f'{name}conv{i}norm', nn.Norm, self.norm)(x))
+        x = x.reshape((x.shape[0], -1))
+        x = self.sub(f'{name}out', nn.Linear, self.lidar_units, **self.kw)(x)
+        x = nn.act(self.act)(self.sub(f'{name}outnorm', nn.Norm, self.norm)(x))
+        outs.append(x)
 
     x = jnp.concatenate(outs, -1)
     tokens = x.reshape((*bshape, *x.shape[1:]))

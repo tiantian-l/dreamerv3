@@ -48,6 +48,9 @@ defaults:
       map_range: [10.0, 10.0, 4.5]
       include_angular_velocity: False
       speed_limit: 2.0
+      perception: flat
+      lidar_hres_deg: 10.0
+      lidar_vbeams: 4
       obstacles_enabled: True
       n_obstacles: 88
       collision_distance: 0.15
@@ -117,7 +120,7 @@ defaults:
       rssm: {deter: 8192, hidden: 1024, stoch: 32, classes: 64, act: silu, norm: rms, unimix: 0.01, outscale: 1.0, winit: trunc_normal_in, imglayers: 2, obslayers: 1, dynlayers: 1, absolute: False, blocks: 8, free_nats: 1.0}
     enc:
       typ: simple
-      simple: {depth: 64, mults: [2, 3, 4, 4], layers: 3, units: 1024, act: silu, norm: rms, winit: trunc_normal_in, symlog: True, outer: False, kernel: 5, strided: False}
+      simple: {depth: 64, mults: [2, 3, 4, 4], layers: 3, units: 1024, act: silu, norm: rms, winit: trunc_normal_in, symlog: True, outer: False, kernel: 5, strided: False, lidar_keys: '', lidar_depth: 48, lidar_layers: 3, lidar_kernel: 5, lidar_stride: 1, lidar_units: 512}
     dec:
       typ: simple
       simple: {depth: 64, mults: [2, 3, 4, 4], layers: 3, units: 1024, act: silu, norm: rms, outscale: 1.0, winit: trunc_normal_in, outer: False, kernel: 5, bspace: 8, strided: False}
@@ -243,7 +246,7 @@ drone_ablation_a:
 drone_ablation_b:
   # Local obstacle avoidance: 8-10 m, 16 sparse obstacles.
   seed: 0
-  env.drone:
+  env.drone: &drone_b_env
     episode_len_sec: 20
     goal_sample_range: [4.0, 5.0, -2.5, 2.5, 0.8, 2.0]
     start_sample_range: [-5.0, -4.0, -2.5, 2.5, 0.8, 1.5]
@@ -256,7 +259,7 @@ drone_ablation_b:
     path_cell_size: 0.25
     path_bounds_y: [-4.3, 4.3]
     eval_seed_base: 120000
-  run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
+  run: &drone_b_run {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
 
 drone_ablation_c:
   # Medium-range planning: 14-16 m, 40 obstacles.
@@ -287,6 +290,90 @@ drone_ablation_d:
     path_bounds_y: [-9.8, 9.8]
     eval_seed_base: 140000
   run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
+
+# Perception-encoding ablations. Always combine exactly one of these with
+# `drone_nav`, for example: `--configs drone_nav drone_perc_cnn`. All three run
+# on the ablation-B task tier (8-10 m crossing, 16 obstacles, 3.8x3.8 field --
+# the ~80% success regime) via the shared `drone_b_env` / `drone_b_run` anchors,
+# so only the LiDAR encoding differs and gains are attributable to perception.
+#
+#   drone_perc_flat   -> state + flattened LiDAR, one shared MLP (baseline),
+#                        10 deg x 4 layers = 144 beams.
+#   drone_perc_cnn    -> state through the MLP, LiDAR through a dedicated 1D
+#                        circular convolution branch, same 10 deg x 4 = 144
+#                        beams as the baseline (isolates the encoding change).
+#   drone_perc_cnn_az -> split CNN encoding with azimuth-only densification
+#                        (5 deg x 4 layers = 288): doubles horizontal resolution
+#                        while keeping elevation fixed, so gains are attributable
+#                        to azimuth density specifically.
+#   drone_perc_cnn_hi -> split CNN encoding with both axes densified
+#                        (5 deg x 8 layers = 576): tests how the convolutional
+#                        branch scales with the full higher-dimensional LiDAR.
+#
+# Capacity in the split variants is asymmetric on purpose: the 9-dim
+# deterministic state gets a small MLP (2 x 128), while the higher-complexity
+# LiDAR gets a deeper conv (depth 64) that also strides down the azimuth axis so
+# the feature capacity lives in the convolution rather than in a giant flatten
+# ->Linear (and stays comparable across resolutions). Both branches are
+# projected to a fixed 512-dim embedding; the RSSM then fuses them to `hidden`.
+# The split variants share identical encoder capacity; only the LiDAR resolution
+# (env.drone.lidar_hres_deg / lidar_vbeams) differs across cnn / cnn_az / cnn_hi.
+drone_perc_flat:
+  seed: 0
+  env.drone:
+    <<: *drone_b_env
+    perception: flat
+    lidar_hres_deg: 10.0
+    lidar_vbeams: 4
+  run: *drone_b_run
+
+drone_perc_cnn:
+  seed: 0
+  env.drone:
+    <<: *drone_b_env
+    perception: split
+    lidar_hres_deg: 10.0
+    lidar_vbeams: 4
+  run: *drone_b_run
+  agent.enc.simple:
+    units: 128
+    layers: 2
+    lidar_keys: '^lidar$'
+    lidar_depth: 64
+    lidar_stride: 2
+    lidar_units: 512
+
+drone_perc_cnn_az:
+  seed: 0
+  env.drone:
+    <<: *drone_b_env
+    perception: split
+    lidar_hres_deg: 5.0
+    lidar_vbeams: 4
+  run: *drone_b_run
+  agent.enc.simple:
+    units: 128
+    layers: 2
+    lidar_keys: '^lidar$'
+    lidar_depth: 64
+    lidar_stride: 2
+    lidar_units: 512
+
+drone_perc_cnn_hi:
+  seed: 0
+  env.drone:
+    <<: *drone_b_env
+    perception: split
+    lidar_hres_deg: 5.0
+    lidar_vbeams: 8
+  run: *drone_b_run
+  agent.enc.simple:
+    units: 128
+    layers: 2
+    lidar_keys: '^lidar$'
+    lidar_depth: 64
+    lidar_stride: 2
+    lidar_units: 512
 
 bsuite:
   task: bsuite_mnist/0
