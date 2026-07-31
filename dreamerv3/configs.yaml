@@ -50,7 +50,9 @@ defaults:
       speed_limit: 2.0
       obstacles_enabled: True
       n_obstacles: 88
-      collision_distance: 0.3
+      collision_distance: 0.15
+      path_clearance: 0.35
+      path_cell_size: 0.25
       path_bounds_y: [-9.8, 9.8]
       eval_seed_base: 100000
       gui: False
@@ -249,6 +251,9 @@ drone_ablation_b:
     map_range: [3.8, 3.8, 3.5]
     obstacles_enabled: True
     n_obstacles: 16
+    collision_distance: 0.15
+    path_clearance: 0.35
+    path_cell_size: 0.25
     path_bounds_y: [-4.3, 4.3]
     eval_seed_base: 120000
   run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
