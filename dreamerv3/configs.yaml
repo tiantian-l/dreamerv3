@@ -398,14 +398,14 @@ drone_perc_cnn_hi:
 drone_reward_v2:
   env.drone:
     reward_cfg:
-      progress: 3.0
+      progress: 2.5
       goal_bonus: 60.0
       time_penalty: 0.005
-      timeout_penalty: 15.0
+      timeout_penalty: 25.0
       crash_penalty: 60.0
       collision_penalty: 60.0
       obstacle_proximity: 0.05
-      safety_margin: 0.6
+      safety_margin: 0.3
 
 bsuite:
   task: bsuite_mnist/0
