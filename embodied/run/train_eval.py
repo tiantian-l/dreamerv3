@@ -1,4 +1,6 @@
 import collections
+import json
+from pathlib import Path
 from functools import partial as bind
 
 import elements
@@ -31,6 +33,14 @@ def train_eval(
   train_epstats = elements.Agg()
   eval_episodes = collections.defaultdict(elements.Agg)
   eval_epstats = elements.Agg()
+  eval_map_records = []
+  eval_maps_path = Path(str(logdir)) / 'eval_maps.jsonl'
+  eval_cycle = 0
+  if eval_maps_path.exists():
+    with eval_maps_path.open(encoding='utf-8') as handle:
+      previous_cycles = [
+          int(json.loads(line)['eval_cycle']) for line in handle if line.strip()]
+    eval_cycle = max(previous_cycles, default=-1) + 1
   policy_fps = elements.FPS()
   train_fps = elements.FPS()
 
@@ -81,7 +91,72 @@ def train_eval(
       # averages it over successes only (mean ignores absent keys).
       if result.get('log/success', 0.0) > 0.5:
         result['log/time_to_goal'] = np.float32(length)
+      if mode == 'eval':
+        eval_map_records.append({
+            'worker': int(worker),
+            'map_seed': int(result.get('log/eval_map_seed', -1)),
+            'map_slot': int(result.get('log/eval_map_slot', -1)),
+            'maps_per_env': int(result.get('log/eval_maps_per_env', -1)),
+            'success': float(result.get('log/success', 0.0)),
+            'collision': float(result.get('log/collision', 0.0)),
+            'crash': float(result.get('log/crash', 0.0)),
+            'timeout': float(result.get('log/timeout', 0.0)),
+            'episode_length': int(length),
+            'final_distance': float(
+                result.get('log/final_distance', np.nan)),
+            'min_distance': float(result.get('log/min_distance', np.nan)),
+            'min_lidar_dist': float(
+                result.get('log/min_lidar_dist', np.nan)),
+        })
       epstats.add(result)
+
+  def write_and_validate_eval_maps(records, cycle, checkpoint_step, quota):
+    expected = args.eval_envs * quota
+    if len(records) != expected:
+      raise RuntimeError(
+          f'Eval coverage error: expected {expected} counted episodes, '
+          f'got {len(records)}')
+    worker_counts = collections.Counter(x['worker'] for x in records)
+    bad_workers = {
+        worker: worker_counts.get(worker, 0)
+        for worker in range(args.eval_envs)
+        if worker_counts.get(worker, 0) != quota}
+    if bad_workers:
+      raise RuntimeError(
+          f'Eval coverage error: per-worker counts must equal {quota}, '
+          f'got {bad_workers}')
+    configured_counts = {x['maps_per_env'] for x in records}
+    if configured_counts != {quota}:
+      raise RuntimeError(
+          f'Eval configuration error: eval_maps_per_env must equal the '
+          f'per-worker quota {quota}, got {sorted(configured_counts)}')
+    seeds = [x['map_seed'] for x in records]
+    if any(seed < 0 for seed in seeds):
+      raise RuntimeError('Eval coverage error: missing eval_map_seed metadata')
+    duplicates = sorted(
+        seed for seed, count in collections.Counter(seeds).items() if count != 1)
+    if duplicates or len(set(seeds)) != expected:
+      raise RuntimeError(
+          f'Eval coverage error: expected {expected} unique maps; '
+          f'duplicate seeds={duplicates}')
+    slots_by_worker = collections.defaultdict(set)
+    for record in records:
+      slots_by_worker[record['worker']].add(record['map_slot'])
+    bad_slots = {
+        worker: sorted(slots)
+        for worker, slots in slots_by_worker.items() if len(slots) != quota}
+    if bad_slots:
+      raise RuntimeError(
+          f'Eval coverage error: workers did not cover {quota} unique slots: '
+          f'{bad_slots}')
+    with eval_maps_path.open('a', encoding='utf-8') as handle:
+      for record in sorted(records, key=lambda x: x['map_seed']):
+        row = {
+            'eval_cycle': int(cycle),
+            'checkpoint_step': int(checkpoint_step),
+            **record,
+        }
+        handle.write(json.dumps(row, allow_nan=True) + '\n')
 
   fns = [bind(make_env_train, i) for i in range(args.envs)]
   driver_train = embodied.Driver(fns, parallel=(not args.debug))
@@ -144,8 +219,17 @@ def train_eval(
 
     if should_report(step):
       print('Evaluation')
+      if args.eval_eps % args.eval_envs:
+        raise ValueError(
+            f'eval_eps ({args.eval_eps}) must be divisible by eval_envs '
+            f'({args.eval_envs}) for equal per-worker map coverage')
+      quota = args.eval_eps // args.eval_envs
+      eval_map_records.clear()
       driver_eval.reset(agent.init_policy)
-      driver_eval(eval_policy, episodes=args.eval_eps)
+      driver_eval(eval_policy, episodes_per_env=quota)
+      write_and_validate_eval_maps(
+          eval_map_records, eval_cycle, step, quota)
+      eval_cycle += 1
       logger.add(eval_epstats.result(), prefix='eval_epstats')
       if len(replay_train):
         carry_report, mets = reportfn(carry_report, stream_report)

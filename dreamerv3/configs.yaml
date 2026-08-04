@@ -58,6 +58,10 @@ defaults:
       path_cell_size: 0.25
       path_bounds_y: [-9.8, 9.8]
       eval_seed_base: 100000
+      # Generic drone_nav evaluates 20 maps using 4 workers x 5 map slots.
+      # A-D override these to 16 workers x 4 slots = 64 maps.
+      eval_maps_per_env: 5
+      eval_seed_stride: 4
       gui: False
       log_image: False
       video_every: 20
@@ -256,6 +260,8 @@ drone_ablation_a:
     obstacles_enabled: False
     n_obstacles: 0
     eval_seed_base: 110000
+    eval_maps_per_env: 4
+    eval_seed_stride: 16
   run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
 
 drone_ablation_b:
@@ -274,6 +280,8 @@ drone_ablation_b:
     path_cell_size: 0.25
     path_bounds_y: [-4.3, 4.3]
     eval_seed_base: 120000
+    eval_maps_per_env: 4
+    eval_seed_stride: 16
   run: &drone_b_run {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
 
 drone_ablation_c:
@@ -289,6 +297,8 @@ drone_ablation_c:
     n_obstacles: 40
     path_bounds_y: [-6.8, 6.8]
     eval_seed_base: 130000
+    eval_maps_per_env: 4
+    eval_seed_stride: 16
   run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
 
 drone_ablation_d:
@@ -304,6 +314,8 @@ drone_ablation_d:
     n_obstacles: 88
     path_bounds_y: [-9.8, 9.8]
     eval_seed_base: 140000
+    eval_maps_per_env: 4
+    eval_seed_stride: 16
   run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
 
 # Perception-encoding ablations. Always combine exactly one of these with

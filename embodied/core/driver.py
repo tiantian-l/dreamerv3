@@ -48,12 +48,20 @@ class Driver:
   def on_step(self, callback):
     self.callbacks.append(callback)
 
-  def __call__(self, policy, steps=0, episodes=0):
+  def __call__(self, policy, steps=0, episodes=0, episodes_per_env=0):
     step, episode = 0, 0
-    while step < steps or episode < episodes:
-      step, episode = self._step(policy, step, episode)
+    episode_counts = np.zeros(self.length, np.int64)
+    if episodes_per_env:
+      assert not steps, 'episodes_per_env cannot be combined with steps'
+      assert episodes_per_env >= 1
+      while np.any(episode_counts < episodes_per_env):
+        step, episode = self._step(
+            policy, step, episode, episode_counts, episodes_per_env)
+    else:
+      while step < steps or episode < episodes:
+        step, episode = self._step(policy, step, episode)
 
-  def _step(self, policy, step, episode):
+  def _step(self, policy, step, episode, episode_counts=None, episode_quota=0):
     acts = self.acts
     assert all(len(x) == self.length for x in acts.values())
     assert all(isinstance(v, np.ndarray) for v in acts.values())
@@ -76,10 +84,17 @@ class Driver:
     self.acts = {**acts, 'reset': obs['is_last'].copy()}
     trans = {**obs, **acts, **outs, **logs}
     for i in range(self.length):
+      # Fast eval workers keep stepping while slower workers finish. Once a
+      # worker reaches its quota, discard its surplus transitions from every
+      # callback (episode stats, eval replay, videos, and FPS accounting).
+      if episode_counts is not None and episode_counts[i] >= episode_quota:
+        continue
       trn = elements.tree.map(lambda x: x[i], trans)
       [fn(trn, i, **self.kwargs) for fn in self.callbacks]
     step += len(obs['is_first'])
     episode += obs['is_last'].sum()
+    if episode_counts is not None:
+      episode_counts += obs['is_last'].astype(np.int64)
     return step, episode
 
   def _mask(self, value, mask):
