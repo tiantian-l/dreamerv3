@@ -282,6 +282,12 @@ def make_env(config, index, **overrides):
   # keyword argument.
   if suite != 'drone':
     kwargs.pop('eval_mode', None)
+  elif not kwargs.get('eval_mode', False):
+    # Give every training worker a distinct, reproducible environment RNG.
+    # SeedSequence avoids Python's process-randomized hash() and therefore
+    # produces identical map streams across machines and process start modes.
+    kwargs['train_seed'] = int(np.random.SeedSequence(
+        [int(config.seed), int(index)]).generate_state(1, dtype=np.uint32)[0])
   if kwargs.pop('use_seed', False):
     kwargs['seed'] = hash((config.seed, index)) % (2 ** 32 - 1)
   if kwargs.pop('use_logdir', False):

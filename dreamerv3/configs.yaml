@@ -444,6 +444,78 @@ drone_reward_v2:
       obstacle_proximity: 0.05
       safety_margin: 0.3
 
+# RQ1/RQ2 static 2x2 factorial environments. Combine one of these with
+# `drone_perc_cnn_hi` and apply `drone_reward_v2` last, for example:
+#   --configs drone_nav drone_perc_cnn_hi drone_static_10_sparse drone_reward_v2
+#
+# Dense follows the established ablation-D density exactly: 88 / 400 m^2 =
+# 0.22 obstacles/m^2. Sparse is half that density. Perception, reward, model,
+# obstacle geometry, and optimizer settings are intentionally held constant.
+drone_static_10_sparse:
+  seed: 0
+  env.drone:
+    episode_len_sec: 20
+    goal_sample_range: [5.7, 6.0, -3.75, 3.75, 0.6, 3.5]
+    start_sample_range: [-6.0, -5.7, -3.75, 3.75, 0.8, 1.5]
+    bounds: [-6.5, 6.5, -5.0, 5.0, 0.05, 4.5]
+    map_range: [5.0, 5.0, 4.5]
+    obstacles_enabled: True
+    n_obstacles: 11
+    path_bounds_y: [-4.8, 4.8]
+    eval_seed_base: 170000
+    eval_maps_per_env: 4
+    eval_seed_stride: 16
+  run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
+
+drone_static_10_dense:
+  seed: 0
+  env.drone:
+    episode_len_sec: 20
+    goal_sample_range: [5.7, 6.0, -3.75, 3.75, 0.6, 3.5]
+    start_sample_range: [-6.0, -5.7, -3.75, 3.75, 0.8, 1.5]
+    bounds: [-6.5, 6.5, -5.0, 5.0, 0.05, 4.5]
+    map_range: [5.0, 5.0, 4.5]
+    obstacles_enabled: True
+    n_obstacles: 22
+    path_bounds_y: [-4.8, 4.8]
+    eval_seed_base: 180000
+    eval_maps_per_env: 4
+    eval_seed_stride: 16
+  run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
+
+drone_static_20_sparse:
+  seed: 0
+  env.drone:
+    episode_len_sec: 40
+    goal_sample_range: [11.7, 12.0, -7.5, 7.5, 0.6, 3.5]
+    start_sample_range: [-12.0, -11.7, -7.5, 7.5, 0.8, 1.5]
+    bounds: [-12.5, 12.5, -10.0, 10.0, 0.05, 4.5]
+    map_range: [10.0, 10.0, 4.5]
+    obstacles_enabled: True
+    n_obstacles: 44
+    path_bounds_y: [-9.8, 9.8]
+    eval_seed_base: 190000
+    eval_maps_per_env: 4
+    eval_seed_stride: 16
+  run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
+
+drone_static_20_dense:
+  # Geometry and density are identical to the established ablation-D task.
+  seed: 0
+  env.drone:
+    episode_len_sec: 40
+    goal_sample_range: [11.7, 12.0, -7.5, 7.5, 0.6, 3.5]
+    start_sample_range: [-12.0, -11.7, -7.5, 7.5, 0.8, 1.5]
+    bounds: [-12.5, 12.5, -10.0, 10.0, 0.05, 4.5]
+    map_range: [10.0, 10.0, 4.5]
+    obstacles_enabled: True
+    n_obstacles: 88
+    path_bounds_y: [-9.8, 9.8]
+    eval_seed_base: 200000
+    eval_maps_per_env: 4
+    eval_seed_stride: 16
+  run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
+
 bsuite:
   task: bsuite_mnist/0
   run: {envs: 1, save_every: -1, train_ratio: 1024}
