@@ -465,7 +465,7 @@ drone_static_10_sparse:
     eval_seed_base: 170000
     eval_maps_per_env: 4
     eval_seed_stride: 16
-  run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
+  run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512, debug: False}
 
 drone_static_10_dense:
   seed: 0
@@ -481,7 +481,7 @@ drone_static_10_dense:
     eval_seed_base: 180000
     eval_maps_per_env: 4
     eval_seed_stride: 16
-  run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
+  run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512, debug: False}
 
 drone_static_20_sparse:
   seed: 0
@@ -497,7 +497,7 @@ drone_static_20_sparse:
     eval_seed_base: 190000
     eval_maps_per_env: 4
     eval_seed_stride: 16
-  run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
+  run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512, debug: False}
 
 drone_static_20_dense:
   # Geometry and density are identical to the established ablation-D task.
@@ -514,7 +514,7 @@ drone_static_20_dense:
     eval_seed_base: 200000
     eval_maps_per_env: 4
     eval_seed_stride: 16
-  run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512}
+  run: {steps: 5e6, envs: 8, eval_envs: 16, eval_eps: 64, train_ratio: 512, debug: False}
 
 bsuite:
   task: bsuite_mnist/0
