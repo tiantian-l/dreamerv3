@@ -8,6 +8,40 @@ import embodied
 import numpy as np
 
 
+def _load_topk_manifest(path):
+  if not path.exists():
+    return []
+  try:
+    data = json.loads(path.read_text(encoding='utf-8'))
+  except (OSError, json.JSONDecodeError) as exc:
+    raise RuntimeError(f'Could not read Top-K manifest {path}: {exc}') from exc
+  entries = data.get('checkpoints', [])
+  if not isinstance(entries, list):
+    raise RuntimeError(
+        f'Invalid Top-K manifest {path}: checkpoints must be a list')
+  return entries
+
+
+def _rank_topk(entries, limit):
+  """Rank by success descending and, for ties, earlier step first."""
+  return sorted(
+      entries, key=lambda x: (-float(x['success']), int(x['step'])))[:limit]
+
+
+def _write_topk_manifest(path, entries, threshold, limit):
+  payload = {
+      'metric': 'eval_epstats/log/success',
+      'threshold': float(threshold),
+      'limit': int(limit),
+      'tie_break': 'earlier_step',
+      'checkpoints': entries,
+  }
+  temporary = path.with_suffix(path.suffix + '.tmp')
+  temporary.write_text(
+      json.dumps(payload, indent=2, sort_keys=True) + '\n', encoding='utf-8')
+  temporary.replace(path)
+
+
 def train_eval(
     make_agent,
     make_replay_train,
@@ -23,6 +57,17 @@ def train_eval(
   replay_eval = make_replay_eval()
   logger = make_logger()
 
+  if args.eval_every_steps <= 0:
+    raise ValueError(
+        f'eval_every_steps must be positive, got {args.eval_every_steps}')
+  if args.topk_checkpoints < 1:
+    raise ValueError(
+        f'topk_checkpoints must be at least 1, got {args.topk_checkpoints}')
+  if not 0.0 <= args.topk_success_threshold <= 1.0:
+    raise ValueError(
+        'topk_success_threshold must be between 0 and 1, got '
+        f'{args.topk_success_threshold}')
+
   logdir = elements.Path(args.logdir)
   logdir.mkdir()
   print('Logdir', logdir)
@@ -35,6 +80,17 @@ def train_eval(
   eval_epstats = elements.Agg()
   eval_map_records = []
   eval_maps_path = Path(str(logdir)) / 'eval_maps.jsonl'
+  topk_dir = Path(str(logdir)) / 'best_checkpoints'
+  topk_dir.mkdir(parents=True, exist_ok=True)
+  topk_manifest_path = topk_dir / 'manifest.json'
+  topk_entries = _load_topk_manifest(topk_manifest_path)
+  topk_entries = [
+      entry for entry in topk_entries
+      if (topk_dir / entry['filename']).exists()]
+  topk_entries = _rank_topk(topk_entries, args.topk_checkpoints)
+  _write_topk_manifest(
+      topk_manifest_path, topk_entries,
+      args.topk_success_threshold, args.topk_checkpoints)
   eval_cycle = 0
   if eval_maps_path.exists():
     with eval_maps_path.open(encoding='utf-8') as handle:
@@ -47,7 +103,7 @@ def train_eval(
   batch_steps = args.batch_size * args.batch_length
   should_train = elements.when.Ratio(args.train_ratio / batch_steps)
   should_log = elements.when.Clock(args.log_every)
-  should_report = elements.when.Clock(args.report_every)
+  should_report = elements.when.Every(args.eval_every_steps)
   should_save = elements.when.Clock(args.save_every)
 
   @elements.timer.section('logfn')
@@ -158,6 +214,48 @@ def train_eval(
         }
         handle.write(json.dumps(row, allow_nan=True) + '\n')
 
+  def maybe_save_topk(eval_stats, cycle, checkpoint_step):
+    success = float(eval_stats['log/success'])
+    if success < args.topk_success_threshold:
+      return False
+    step_value = int(checkpoint_step)
+    if any(int(entry['step']) == step_value for entry in topk_entries):
+      return False
+    filename = f'step_{step_value:010d}_success_{success:.4f}.ckpt'
+    candidate = {
+        'step': step_value,
+        'success': success,
+        'eval_cycle': int(cycle),
+        'filename': filename,
+    }
+    ranked = _rank_topk(
+        [*topk_entries, candidate], args.topk_checkpoints)
+    if candidate not in ranked:
+      return False
+
+    # Best checkpoints are for model selection and deployment, so store only
+    # the agent. The rolling full checkpoint below retains replay and step state
+    # for interruption recovery.
+    checkpoint = elements.Checkpoint(
+        str(topk_dir / filename), parallel=False)
+    checkpoint.agent = agent
+    checkpoint.save()
+
+    retained = {entry['filename'] for entry in ranked}
+    for entry in topk_entries:
+      if entry['filename'] not in retained:
+        old_path = topk_dir / entry['filename']
+        if old_path.exists():
+          old_path.unlink()
+    topk_entries[:] = ranked
+    _write_topk_manifest(
+        topk_manifest_path, topk_entries,
+        args.topk_success_threshold, args.topk_checkpoints)
+    print(
+        f'Saved Top-K agent checkpoint at step {step_value}: '
+        f'success={success:.4f}')
+    return True
+
   fns = [bind(make_env_train, i) for i in range(args.envs)]
   driver_train = embodied.Driver(fns, parallel=(not args.debug))
   driver_train.on_step(lambda tran, _: step.increment())
@@ -229,8 +327,10 @@ def train_eval(
       driver_eval(eval_policy, episodes_per_env=quota)
       write_and_validate_eval_maps(
           eval_map_records, eval_cycle, step, quota)
+      eval_stats = eval_epstats.result()
+      maybe_save_topk(eval_stats, eval_cycle, step)
       eval_cycle += 1
-      logger.add(eval_epstats.result(), prefix='eval_epstats')
+      logger.add(eval_stats, prefix='eval_epstats')
       if len(replay_train):
         carry_report, mets = reportfn(carry_report, stream_report)
         logger.add(mets, prefix='report')
