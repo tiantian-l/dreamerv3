@@ -1,5 +1,6 @@
 import collections
 import json
+import shutil
 from pathlib import Path
 from functools import partial as bind
 
@@ -233,19 +234,20 @@ def train_eval(
     if candidate not in ranked:
       return False
 
-    # Best checkpoints are for model selection and deployment, so store only
-    # the agent. The rolling full checkpoint below retains replay and step state
-    # for interruption recovery.
-    checkpoint = elements.Checkpoint(
-        str(topk_dir / filename), parallel=False)
-    checkpoint.agent = agent
-    checkpoint.save()
+    # Best checkpoints are directly loadable agent-only checkpoints. The rolling
+    # full checkpoint below retains replay and step state for recovery. Using the
+    # low-level API also avoids version-specific constructor arguments and an
+    # extra timestamp generation below filename.
+    elements.checkpoint.save(
+        str(topk_dir / filename), {'agent': agent.save})
 
     retained = {entry['filename'] for entry in ranked}
     for entry in topk_entries:
       if entry['filename'] not in retained:
         old_path = topk_dir / entry['filename']
-        if old_path.exists():
+        if old_path.is_dir():
+          shutil.rmtree(old_path)
+        elif old_path.exists():
           old_path.unlink()
     topk_entries[:] = ranked
     _write_topk_manifest(
