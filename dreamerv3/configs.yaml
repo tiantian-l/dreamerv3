@@ -447,6 +447,41 @@ drone_reward_v2:
       obstacle_proximity: 0.05
       safety_margin: 0.3
 
+# Plateau-checkpoint continuation diagnostics. Apply exactly one of these
+# presets last, after the task and reward presets. All five branches are
+# intentionally identical except for the single factor named by the branch.
+# They are designed to resume copies of the same rolling full checkpoint, so
+# agent, optimizer, step, and replay state share an identical starting point.
+drone_plateau_a_control:
+  replay.size: 5e6
+  agent.imag_length: 15
+  agent.imag_loss.actent: 3e-4
+  agent.opt.lr: 4e-5
+
+drone_plateau_b_entropy:
+  replay.size: 5e6
+  agent.imag_length: 15
+  agent.imag_loss.actent: 1e-3
+  agent.opt.lr: 4e-5
+
+drone_plateau_c_horizon:
+  replay.size: 5e6
+  agent.imag_length: 30
+  agent.imag_loss.actent: 3e-4
+  agent.opt.lr: 4e-5
+
+drone_plateau_d_low_lr:
+  replay.size: 5e6
+  agent.imag_length: 15
+  agent.imag_loss.actent: 3e-4
+  agent.opt.lr: 1e-5
+
+drone_plateau_e_replay_1m:
+  replay.size: 1e6
+  agent.imag_length: 15
+  agent.imag_loss.actent: 3e-4
+  agent.opt.lr: 4e-5
+
 # RQ1/RQ2 static 2x2 factorial environments. Combine one of these with
 # `drone_perc_cnn_hi` and apply `drone_reward_v2` last, for example:
 #   --configs drone_nav drone_perc_cnn_hi drone_static_10_sparse drone_reward_v2
